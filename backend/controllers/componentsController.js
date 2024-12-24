@@ -36,15 +36,20 @@ module.exports = {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { stock } = req.body;
-
-      // Atualiza o estoque do componente
-      const [updatedRows] = await Component.update({ stock }, { where: { id } });
-
+      const { name, stock } = req.body;  // Pega tanto nome quanto estoque
+  
+      // Cria um objeto com os campos a serem atualizados
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (stock !== undefined) updateData.stock = stock;
+  
+      // Atualiza o componente
+      const [updatedRows] = await Component.update(updateData, { where: { id } });
+  
       if (updatedRows === 0) {
         return res.status(404).json({ message: 'Componente não encontrado.' });
       }
-
+  
       res.sendStatus(204);
     } catch (error) {
       console.error('Erro ao atualizar componente:', error);

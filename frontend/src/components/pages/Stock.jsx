@@ -1,5 +1,3 @@
-// frontend/src/pages/Stock.jsx
-
 import { useEffect, useState } from 'react';
 import { Save, Trash2, Search, Filter } from 'lucide-react';
 import api from '../services/api';
@@ -41,7 +39,10 @@ export function Stock() {
       const name = prompt('Digite o nome do componente:');
       const stock = parseInt(prompt('Digite a quantidade em estoque:')) || 0;
 
-      if (!name) return;
+      if (!name) {
+        showAlert('O nome do componente é obrigatório.', 'error');
+        return;
+      }
 
       const newComponent = {
         code: `COMP-${Date.now()}`,
@@ -69,6 +70,11 @@ export function Stock() {
   const saveEdit = async () => {
     if (!editingComponent) return;
 
+    if (!editForm.name.trim()) {
+      showAlert('O nome do componente não pode estar vazio.', 'error');
+      return;
+    }
+
     try {
       await api.put(`/components/${editingComponent.id}`, {
         name: editForm.name,
@@ -78,7 +84,7 @@ export function Stock() {
       showAlert('Componente atualizado com sucesso!');
       await fetchComponents();
     } catch (error) {
-      console.error('Erro ao editar componente:', error);
+      console.error('Erro ao editar componente:', error.response?.data || error.message);
       showAlert('Erro ao atualizar componente', 'error');
     }
   };
@@ -119,13 +125,13 @@ export function Stock() {
       )}
 
       <div className="bg-white rounded-lg shadow p-6 ">
-        <div className="flex  mb-6">
-          <div className="flex items-center  space-x-4 mb-6 ">
+        <div className="flex mb-6">
+          <div className="relative w-96">
             <Search className="absolute left-2 top-3 h-4 w-4 text-gray-500" />
             <input
               type="text"
               placeholder="Pesquisar"
-              className="w-96 p-2 border rounded pl-10 bg-gray-50 relative"
+              className="w-full p-2 border rounded pl-10 bg-gray-50"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && fetchComponents()}
