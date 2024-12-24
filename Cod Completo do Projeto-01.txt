@@ -1,0 +1,475 @@
+📦 frontend/
+┣ 📂 src/
+┃ ┣ 📂 components/
+┃ ┃ ┗ 📜 Sidebar.jsx
+┃ ┣ 📂 pages/
+┃ ┃ ┣ 
+┃ ┃ ┗ 📜 Stock.jsx
+┃ ┣ 
+┃ ┃ 
+┃ ┣ 📜 App.jsx
+┃ ┗ 📜 main.jsx
+┣ 📜 index.html
+┣ 📜 package.json
+┣ 📜 tailwind.config.js
+┗ 📜 vite.config.js
+
+
+📦 backend/
+┣ 📂 config/
+┃ ┗ 📜 database.js
+┣ 📂 controllers/
+┃ ┗ 📜 componentsController.js
+┣ 📂 models/
+┃ ┗ 📜 Component.js
+┣ 📂 routes/
+┃ ┗ 📜 components.js
+┣ 📜 server.js
+┣ 📜 package.json
+┗ 📜 .env
+
+
+
+// frontend/App.jsx
+
+import { BrowserRouter } from 'react-router-dom'
+import { Sidebar } from './components/Sidebar'
+import { Stock } from './components/pages/Stock'
+
+
+
+
+function App() {
+  return (
+    <BrowserRouter>
+      <div className="flex h-screen bg-gray-100">
+        <Sidebar />
+        <div className="flex-1">
+          <Stock />
+        </div>
+      </div>
+    </BrowserRouter>
+  )
+}
+
+export default App
+
+
+
+// frontend/src/components/Sidebar.jsx
+
+import logo from '../assets/logo.png'
+
+
+const handleLogout = () => {
+  localStorage.removeItem('userToken');
+  window.location.href = '/login'; // Redireciona para a página de login
+};
+
+export function Sidebar() {
+  return (
+    <div className="w-64 bg-green-800 text-white min-h-screen">
+      <div className="p-4 items-center flex">
+        <img src={logo} alt="IT support" className="m-4 h-16 w-16" />
+        <p className="m-4 font-bold">IT support</p>
+      </div>
+      
+      <nav className="mt-8">
+        <div className="px-4">
+          
+          <div className="flex items-center p-2  text-white">
+            <span className="ml-2">Estoque</span>
+          </div>
+          
+          
+        </div>
+      </nav>
+
+      <div className="mt-auto p-4">
+        <div className="flex items-center p-2 text-red-300">
+        <button onClick={handleLogout} className="ml-2">Sair</button>
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// frontend/src/components/services/api.js
+
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:5000/api',
+});
+
+export default api;
+
+
+
+// frontend/src/components/pages/Stock.jsx
+
+
+// frontend/src/components/pages/Stock.jsx
+
+import { useEffect, useState } from 'react';
+import api from '../services/api';
+
+export function Stock() {
+  const [components, setComponents] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [editingComponent, setEditingComponent] = useState(null);
+  const [newStock, setNewStock] = useState('');
+
+  const fetchComponents = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/components', {
+        params: { search }
+      });
+      setComponents(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar componentes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addComponent = async () => {
+    try {
+      const newComponent = {
+        code: `COMP-${Date.now()}`,
+        name: prompt('Digite o nome do componente:'),
+        stock: parseInt(prompt('Digite a quantidade em estoque:')) || 0
+      };
+
+      if (!newComponent.name) return;
+
+      await api.post('/components', newComponent);
+      await fetchComponents();
+    } catch (error) {
+      console.error('Erro ao adicionar componente:', error);
+    }
+  };
+
+  const startEditing = (component) => {
+    setEditingComponent(component);
+    setNewStock(component.stock.toString());
+  };
+
+  const saveEdit = async () => {
+    if (!editingComponent) return;
+
+    try {
+      await api.put(`/components/${editingComponent.id}`, {
+        stock: parseInt(newStock)
+      });
+      setEditingComponent(null);
+      await fetchComponents();
+    } catch (error) {
+      console.error('Erro ao editar componente:', error);
+    }
+  };
+
+  const deleteComponent = async (id) => {
+    if (!confirm('Confirma a exclusão?')) return;
+
+    try {
+      await api.delete(`/components/${id}`);
+      await fetchComponents();
+    } catch (error) {
+      console.error('Erro ao deletar componente:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchComponents();
+  }, []);
+
+  return (
+    <div className="p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <h1 className="text-xl">Componentes / Estoque</h1>
+        </div>
+        <div className="flex items-center">
+          <span className="text-gray-600 mr-2">Julião Silva</span>
+          <span className="text-gray-400 text-sm">juliasilvaaa@123.com</span>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between mb-6">
+          <div className="flex-1 mr-4">
+            <input
+              type="text"
+              placeholder="Pesquisar"
+              className="w-full p-2 border rounded"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && fetchComponents()}
+            />
+          </div>
+
+          <button 
+            onClick={fetchComponents} 
+            className="bg-green-800 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            {loading ? 'Carregando...' : 'Filtrar'}
+          </button>
+
+          <button 
+            onClick={addComponent} 
+            className="bg-green-800 text-white px-4 py-2 rounded ml-2 hover:bg-green-700"
+          >
+            Novo
+          </button>
+        </div>
+
+        <table className="w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left p-2">Código</th>
+              <th className="text-left p-2">Componente</th>
+              <th className="text-left p-2">Estoque</th>
+              <th className="text-left p-2">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {components.map((component) => (
+              <tr key={component.id} className="border-b">
+                <td className="p-2">{component.code}</td>
+                <td className="p-2">{component.name}</td>
+                <td className="p-2">
+                  {editingComponent?.id === component.id ? (
+                    <input
+                      type="number"
+                      value={newStock}
+                      onChange={(e) => setNewStock(e.target.value)}
+                      className="border rounded p-1 w-20"
+                    />
+                  ) : (
+                    component.stock
+                  )}
+                </td>
+                <td className="p-2">
+                  {editingComponent?.id === component.id ? (
+                    <button 
+                      onClick={saveEdit}
+                      className="text-green-600 hover:text-green-800 mr-2"
+                    >
+                      Salvar
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => startEditing(component)}
+                      className="text-green-600 hover:text-green-800 mr-2"
+                    >
+                      Editar
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => deleteComponent(component.id)}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    Deletar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+// backend/config/database.js
+
+const { Sequelize } = require('sequelize');
+require('dotenv').config();
+
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    dialect: 'mysql',
+    port: process.env.DB_PORT,
+  }
+);
+
+sequelize
+  .authenticate()
+  .then(() => console.log('Conexão bem-sucedida com o banco de dados.'))
+  .catch((err) => console.error('Erro ao conectar ao banco de dados:', err));
+
+module.exports = sequelize;
+
+
+
+
+// backend/controllers/componentsController.js
+
+const { Op } = require('sequelize');
+const Component = require('../models/Component');
+
+module.exports = {
+  async getAll(req, res) {
+    try {
+      const { search } = req.query;
+      const condition = search ? { where: { name: { [Op.like]: `%${search}%` } } } : {};
+      const components = await Component.findAll(condition);
+      res.json(components);
+    } catch (error) {
+      console.error('Erro ao buscar componentes:', error);
+      res.status(500).json({ message: 'Erro ao buscar componentes.' });
+    }
+  },
+
+  async create(req, res) {
+    try {
+      const { code, name, stock } = req.body;
+
+      // Verifica se o código já existe
+      const existingComponent = await Component.findOne({ where: { code } });
+      if (existingComponent) {
+        return res.status(400).json({ message: 'Código já existe no banco de dados!' });
+      }
+
+      // Cria o componente
+      const component = await Component.create({ code, name, stock });
+      res.status(201).json(component);
+    } catch (error) {
+      console.error('Erro ao criar componente:', error);
+      res.status(500).json({ message: 'Erro ao criar componente.' });
+    }
+  },
+
+  async update(req, res) {
+    try {
+      const { id } = req.params;
+      const { stock } = req.body;
+
+      // Atualiza o estoque do componente
+      const [updatedRows] = await Component.update({ stock }, { where: { id } });
+
+      if (updatedRows === 0) {
+        return res.status(404).json({ message: 'Componente não encontrado.' });
+      }
+
+      res.sendStatus(204);
+    } catch (error) {
+      console.error('Erro ao atualizar componente:', error);
+      res.status(500).json({ message: 'Erro ao atualizar componente.' });
+    }
+  },
+
+  async delete(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Remove o componente
+      const deletedRows = await Component.destroy({ where: { id } });
+
+      if (deletedRows === 0) {
+        return res.status(404).json({ message: 'Componente não encontrado.' });
+      }
+
+      res.sendStatus(204);
+    } catch (error) {
+      console.error('Erro ao deletar componente:', error);
+      res.status(500).json({ message: 'Erro ao deletar componente.' });
+    }
+  },
+};
+
+
+
+
+
+
+
+// backend/models/Component.js
+
+
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database'); // Assuma que você tem o arquivo de configuração do sequelize
+
+const Component = sequelize.define('Component', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true, // Define id como PRIMARY KEY
+    autoIncrement: true, // Gera ID automaticamente
+  },
+  code: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true, // Evita duplicação no campo code
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  stock: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+}, {
+  timestamps: false, // Remove createdAt e updatedAt se não for necessário
+});
+
+module.exports = Component;
+
+
+
+
+// backend/routes/components.js
+
+const express = require('express');
+const router = express.Router();
+const controller = require('../controllers/componentsController');
+
+router.get('/components', controller.getAll);
+router.post('/components', controller.create);
+router.put('/components/:id', controller.update);
+router.delete('/components/:id', controller.delete);
+
+module.exports = router;
+
+
+
+// backend/server.js
+
+
+const express = require('express');
+const cors = require('cors');
+const sequelize = require('./config/database');
+const componentRoutes = require('./routes/components');
+
+const app = express();
+const PORT = 5000;
+
+app.use(cors());
+app.use(express.json());
+app.use('/api', componentRoutes);
+
+sequelize.sync({ force: false }).then(() => {
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando em http://localhost:${PORT}`);
+  });
+});
+
+
+
+
+
+
+
+
+
