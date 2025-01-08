@@ -1,0 +1,876 @@
+
+
+📦 backend/
+┣ 📂 config/
+┃ ┗ 📜 database.js
+┣ 📂 controllers/
+┃ ┗ 📜 componentsController.js
+┣ 📂 models/
+┃ ┗ 📜 Component.js
+┣ 📂 routes/
+┃ ┗ 📜 components.js
+┣ 📜 server.js
+┣ 📜 package.json
+┗ 📜 .env
+
+
+📦 frontend/
+┣ 📂 src/
+┃ ┣ 📂 components/
+┃ ┃ ┗ 📜 Sidebar.jsx
+┃ ┣ 📂 pages/
+┃ ┃ ┣ 
+┃ ┃ ┗ 📜 Stock.jsx
+┃ ┣ 
+┃ ┃ 
+┃ ┣ 📜 App.jsx
+┃ ┗ 📜 main.jsx
+┣ 📜 index.html
+┣ 📜 package.json
+┣ 📜 tailwind.config.js
+┗ 📜 vite.config.js
+
+
+
+
+
+
+// backend/config/database.js
+
+const { Sequelize } = require('sequelize');
+require('dotenv').config();
+
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    dialect: 'mysql',
+    port: process.env.DB_PORT,
+  }
+);
+
+sequelize
+  .authenticate()
+  .then(() => console.log('Conexão bem-sucedida com o banco de dados.'))
+  .catch((err) => console.error('Erro ao conectar ao banco de dados:', err));
+
+module.exports = sequelize;
+
+
+
+
+
+
+
+// backend/controllers/componentsController.js
+
+const { Op } = require('sequelize');
+const Component = require('../models/Component');
+
+module.exports = {
+  async getAll(req, res) {
+    try {
+      const { search } = req.query;
+      const condition = search ? { where: { name: { [Op.like]: `%${search}%` } } } : {};
+      const components = await Component.findAll(condition);
+      res.json(components);
+    } catch (error) {
+      console.error('Erro ao buscar componentes:', error);
+      res.status(500).json({ message: 'Erro ao buscar componentes.' });
+    }
+  },
+
+  async create(req, res) {
+    try {
+      const { code, name, stock } = req.body;
+
+      // Verifica se o código já existe
+      const existingComponent = await Component.findOne({ where: { code } });
+      if (existingComponent) {
+        return res.status(400).json({ message: 'Código já existe no banco de dados!' });
+      }
+
+      // Cria o componente
+      const component = await Component.create({ code, name, stock });
+      res.status(201).json(component);
+    } catch (error) {
+      console.error('Erro ao criar componente:', error);
+      res.status(500).json({ message: 'Erro ao criar componente.' });
+    }
+  },
+
+  async update(req, res) {
+    try {
+      const { id } = req.params;
+      const { name, stock } = req.body;  // Pega tanto nome quanto estoque
+  
+      // Cria um objeto com os campos a serem atualizados
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (stock !== undefined) updateData.stock = stock;
+  
+      // Atualiza o componente
+      const [updatedRows] = await Component.update(updateData, { where: { id } });
+  
+      if (updatedRows === 0) {
+        return res.status(404).json({ message: 'Componente não encontrado.' });
+      }
+  
+      res.sendStatus(204);
+    } catch (error) {
+      console.error('Erro ao atualizar componente:', error);
+      res.status(500).json({ message: 'Erro ao atualizar componente.' });
+    }
+  },
+
+  async delete(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Remove o componente
+      const deletedRows = await Component.destroy({ where: { id } });
+
+      if (deletedRows === 0) {
+        return res.status(404).json({ message: 'Componente não encontrado.' });
+      }
+
+      res.sendStatus(204);
+    } catch (error) {
+      console.error('Erro ao deletar componente:', error);
+      res.status(500).json({ message: 'Erro ao deletar componente.' });
+    }
+  },
+};
+
+
+
+
+
+
+
+
+
+
+
+
+// backend/models/Component.js
+
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database'); // Assuma que você tem o arquivo de configuração do sequelize
+
+const Component = sequelize.define('Component', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true, // Define id como PRIMARY KEY
+    autoIncrement: true, // Gera ID automaticamente
+  },
+  code: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true, // Evita duplicação no campo code
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  stock: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+}, {
+  timestamps: false, // Remove createdAt e updatedAt se não for necessário
+});
+
+module.exports = Component;
+
+
+
+
+
+
+
+
+
+// backend/routes/components.js
+
+const express = require('express');
+const router = express.Router();
+const jwt = require('jsonwebtoken');
+const componentsController = require('../controllers/componentsController');
+
+router.post('/auth/login', (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (email === 'marconesdb@example.com' && password === 'admin123') {
+      const token = jwt.sign(
+        { email, name: 'Marcone S. de Brito' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+      return res.json({
+        token,
+        name: 'Marcone S. de Brito',
+        email: email
+      });
+    }
+    return res.status(401).json({ message: 'Credenciais inválidas' });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ message: 'Erro interno no servidor' });
+  }
+});
+
+router.get('/components', componentsController.getAll);
+router.post('/components', componentsController.create);
+router.put('/components/:id', componentsController.update);
+router.delete('/components/:id', componentsController.delete);
+
+module.exports = router;
+
+
+
+
+// backend/.env
+
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=123456M*
+DB_NAME=inventory
+DB_PORT=3306
+JWT_SECRET=admin123
+
+
+
+
+
+
+// backend/server.js
+
+
+const express = require('express');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const sequelize = require('./config/database');
+const routes = require('./routes/components');
+
+const app = express();
+const PORT = 5000;
+
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
+
+app.use(express.json());
+
+const authMiddleware = (req, res, next) => {
+  if (req.path === '/api/auth/login') {
+    return next();
+  }
+
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Token não fornecido' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Token inválido' });
+  }
+};
+
+app.use('/api', routes);
+app.use('/api/components', authMiddleware);
+
+sequelize.sync({ force: false }).then(() => {
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando em http://localhost:${PORT}`);
+  });
+});
+
+
+
+
+
+
+
+// src/components/pages/Home.jsx
+
+import { useEffect, useState } from 'react';
+import api from '../services/api';
+
+export function Home() {
+  const [components, setComponents] = useState([]);
+
+  useEffect(() => {
+    const fetchComponents = async () => {
+      try {
+        const response = await api.get('/components');
+        setComponents(response.data);
+      } catch (error) {
+        console.error('Erro ao buscar componentes:', error);
+      }
+    };
+    fetchComponents();
+  }, []);
+
+  return (
+    <div className="p-8">
+      <h1 className="text-xl mb-6">Lista de Componentes</h1>
+      <div className="bg-white rounded-lg shadow p-6">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left p-2">Código</th>
+              <th className="text-left p-2">Componente</th>
+              <th className="text-left p-2">Estoque</th>
+            </tr>
+          </thead>
+          <tbody>
+            {components.map((component) => (
+              <tr key={component.id} className="border-b">
+                <td className="p-2">{component.code}</td>
+                <td className="p-2">{component.name}</td>
+                <td className="p-2">{component.stock}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+// frontend/src/pages/Login.jsx
+
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
+import logo from '../../assets/Logo.png'
+export function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await api.post('/auth/login', { 
+        email: email.trim(), 
+        password: password.trim() 
+      });
+      
+      localStorage.setItem('userToken', response.data.token);
+      localStorage.setItem('userName', response.data.name);
+      localStorage.setItem('userEmail', response.data.email);
+      
+      navigate('/stock');
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Credenciais inválidas');
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-green-800 p-8 rounded-lg shadow-md w-96">
+      <div className="text-center mb-6">
+          <img src={logo} alt="Login" className="w-24 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white">Faça o Login</h2>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <input
+              type="email"
+              placeholder="Email"
+              className="w-full p-2 border rounded"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="mb-6">
+            <input
+              type="password"
+              placeholder="Senha"
+              className="w-full p-2 border rounded"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full font-bold bg-white text-green-800 p-2 rounded hover:bg-green-700 hover:text-white"
+          >
+            Entrar
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+// frontend/src/pages/Stock.jsx
+
+import { useEffect, useState } from 'react';
+import { Save, Trash2 } from 'lucide-react';
+import api from '../services/api';
+import { Alert, AlertDescription } from '../ui/Alert';
+
+export function Stock() {
+  const [components, setComponents] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [editingComponent, setEditingComponent] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    stock: ''
+  });
+  const [alert, setAlert] = useState({ show: false, message: '', type: '' });
+
+  const fetchComponents = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/components', {
+        params: { search }
+      });
+      setComponents(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar componentes:', error);
+      showAlert('Erro ao buscar componentes', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showAlert = (message, type = 'success') => {
+    setAlert({ show: true, message, type });
+    setTimeout(() => setAlert({ show: false, message: '', type: '' }), 3000);
+  };
+
+  const addComponent = async () => {
+    try {
+      const name = prompt('Digite o nome do componente:');
+      const stock = parseInt(prompt('Digite a quantidade em estoque:')) || 0;
+      
+      if (!name) return;
+
+      const newComponent = {
+        code: `COMP-${Date.now()}`,
+        name,
+        stock
+      };
+
+      await api.post('/components', newComponent);
+      showAlert('Componente adicionado com sucesso!');
+      await fetchComponents();
+    } catch (error) {
+      console.error('Erro ao adicionar componente:', error);
+      showAlert('Erro ao adicionar componente', 'error');
+    }
+  };
+
+  const startEditing = (component) => {
+    setEditingComponent(component);
+    setEditForm({
+      name: component.name,
+      stock: component.stock.toString()
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingComponent) return;
+
+    try {
+      await api.put(`/components/${editingComponent.id}`, {
+        name: editForm.name,
+        stock: parseInt(editForm.stock)
+      });
+      setEditingComponent(null);
+      showAlert('Componente atualizado com sucesso!');
+      await fetchComponents();
+    } catch (error) {
+      console.error('Erro ao editar componente:', error);
+      showAlert('Erro ao atualizar componente', 'error');
+    }
+  };
+
+  const deleteComponent = async (id) => {
+    if (!confirm('Confirma a exclusão?')) return;
+    
+    try {
+      await api.delete(`/components/${id}`);
+      showAlert('Componente deletado com sucesso!');
+      await fetchComponents();
+    } catch (error) {
+      console.error('Erro ao deletar componente:', error);
+      showAlert('Erro ao deletar componente', 'error');
+    }
+  };
+
+  useEffect(() => {
+    fetchComponents();
+  }, []);
+
+  return (
+    <div className="p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <h1 className="text-xl">Componentes / Estoque</h1>
+        </div>
+        <div className="flex items-center">
+          <span className="text-gray-600 mr-2">{localStorage.getItem('userName')}</span>
+          <span className="text-gray-400 text-sm">{localStorage.getItem('userEmail')}</span>
+        </div>
+      </div>
+
+      {alert.show && (
+        <Alert type={alert.type}>
+          <AlertDescription>
+            {alert.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between mb-6">
+          <div className="flex-1 mr-4">
+            <input
+              type="text"
+              placeholder="Pesquisar"
+              className="w-full p-2 border rounded"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && fetchComponents()}
+            />
+          </div>
+
+          <button 
+            onClick={fetchComponents} 
+            className="bg-green-800 text-white px-4 py-2 rounded hover:bg-green-600 font-bold"
+          >
+            {loading ? 'Carregando...' : 'Filtrar'}
+          </button>
+
+          <button 
+            onClick={addComponent} 
+            className="bg-yellow-500 text-white px-4 py-2 rounded ml-2 hover:bg-yellow-700 font-bold"
+          >
+            Novo <span className='text-[20px] font-bold'>+</span>
+          </button>
+        </div>
+
+        <table className="w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left p-2">Código</th>
+              <th className="text-left p-2">Componente</th>
+              <th className="text-left p-2">Estoque</th>
+              <th className="text-left p-2">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {components.map((component) => (
+              <tr key={component.id} className="border-b">
+                <td className="p-2">{component.code}</td>
+                <td className="p-2">
+                  {editingComponent?.id === component.id ? (
+                    <input
+                      type="text"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className="border rounded p-1 w-full"
+                    />
+                  ) : (
+                    component.name
+                  )}
+                </td>
+                <td className="p-2">
+                  {editingComponent?.id === component.id ? (
+                    <input
+                      type="number"
+                      value={editForm.stock}
+                      onChange={(e) => setEditForm({ ...editForm, stock: e.target.value })}
+                      className="border rounded p-1 w-20"
+                    />
+                  ) : (
+                    component.stock
+                  )}
+                </td>
+                <td className="p-2">
+                  {editingComponent?.id === component.id ? (
+                    <button 
+                      onClick={saveEdit}
+                      className="text-green-600 hover:text-green-800 mr-2 inline-flex items-center"
+                    >
+                      <Save className="h-4 w-4 mr-1" />
+                      Salvar
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => startEditing(component)}
+                      className="text-green-600 hover:text-green-800 mr-2 inline-flex items-center"
+                    >
+                      <Save className="h-4 w-4 mr-1" />
+                      Editar
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => deleteComponent(component.id)}
+                    className="text-red-600 hover:text-red-800 inline-flex items-center"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Deletar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+// frontend/src/components/services/api.js
+
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:5000/api',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('userToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default api;
+
+
+
+
+
+
+
+
+
+
+// frontend/src/components/ui/Alert.jsx
+
+
+import { AlertCircle } from 'lucide-react';
+
+export function Alert({ children, className = '', type = 'success' }) {
+  const baseClasses = 'flex items-center p-4 mb-4 rounded-lg';
+  const typeClasses = type === 'error' 
+    ? 'text-red-800 bg-red-50' 
+    : 'text-green-800 bg-green-50';
+
+  return (
+    <div className={`${baseClasses} ${typeClasses} ${className}`}>
+      <AlertCircle className="h-4 w-4 mr-2" />
+      {children}
+    </div>
+  );
+}
+
+export function AlertDescription({ children }) {
+  return <span className="text-sm font-medium">{children}</span>;
+}
+
+
+
+
+
+
+// frontend/src/components/PrivateRoute.jsx
+import { Navigate } from 'react-router-dom';
+
+export function PrivateRoute({ children }) {
+  const isAuthenticated = localStorage.getItem('userToken');
+  return isAuthenticated ? children : <Navigate to="/login" />;
+}
+
+
+
+
+
+
+
+// frontend/src/components/Sidebar.jsx
+
+import { Link, useLocation } from 'react-router-dom';
+import { Home, Package, LogOut } from 'lucide-react';
+import logo from '../assets/logo.png';
+
+export function Sidebar() {
+  const location = useLocation();
+
+  const handleLogout = () => {
+    localStorage.removeItem('userToken');
+    window.location.href = '/login';
+  };
+
+  return (
+    <div className="w-64 bg-green-800 text-white min-h-screen">
+      <div className="p-4 items-center flex">
+        <img src={logo} alt="IT support" className="m-4 h-16 w-16" />
+        <p className="m-4 font-bold">IT support</p>
+      </div>
+      
+      <nav className="mt-8">
+        <div className="px-4">
+          <Link to="/home">
+            <div className={`flex items-center p-2 text-white hover:bg-green-700 rounded-md ${location.pathname === '/home' ? 'bg-green-700' : ''}`}>
+              <Home className="h-5 w-5" />
+              <span className="ml-2">Início</span>
+            </div>
+          </Link>
+          
+          <Link to="/stock">
+            <div className={`mt-2 flex items-center p-2 text-white hover:bg-green-700 rounded-md ${location.pathname === '/stock' ? 'bg-green-700' : ''}`}>
+              <Package className="h-5 w-5" />
+              <span className="ml-2 ">Estoque</span>
+            </div>
+          </Link>
+        </div>
+      </nav>
+
+      <div className="absolute bottom-0 p-4 w-64">
+        <button 
+          onClick={handleLogout} 
+          className="flex items-center p-2 text-red-300 hover:text-red-100 hover:bg-red-800 rounded-md w-full transition-colors duration-200"
+        >
+          <LogOut className="h-5 w-5" />
+          <span className="ml-2">Sair</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+//frontend/src/App.jsx
+
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Sidebar } from './components/Sidebar';
+import { Stock } from './components/pages/Stock';
+import { Home } from './components/pages/Home';
+import { Login } from './components/pages/Login';
+import { PrivateRoute } from './components/PrivateRoute';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/home"
+          element={
+            <PrivateRoute>
+              <div className="flex h-screen bg-gray-100">
+                <Sidebar />
+                <div className="flex-1">
+                  <Home />
+                </div>
+              </div>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/stock"
+          element={
+            <PrivateRoute>
+              <div className="flex h-screen bg-gray-100">
+                <Sidebar />
+                <div className="flex-1">
+                  <Stock />
+                </div>
+              </div>
+            </PrivateRoute>
+          }
+        />
+        <Route path="/" element={<Navigate to="/login" />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
